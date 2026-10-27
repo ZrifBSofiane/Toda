@@ -89,3 +89,12 @@ export function serializeItem(item: Item): string {
   if (item.done !== undefined && item.done !== '') segs.push(`done: ${cleanText(item.done)}`);
   return `${item.id}  ${item.status}  ${item.opened}  ${cleanWhere(item.where)}  ${segs.join(' / ')}`;
 }
+
+export function nextId(...contents: (string | null | undefined)[]): string {
+  let max = 0;
+  for (const c of contents) {
+    if (!c) continue;
+    for (const m of c.matchAll(/^D-(\d+)\s/gm)) max = Math.max(max, Number(m[1]));
+  }
+  return `D-${String(max + 1).padStart(3, '0')}`;
+}

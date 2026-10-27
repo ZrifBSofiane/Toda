@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TODA_HEADER, cleanText, cleanWhere, emptyFile, parse, serializeItem, type Item } from '../src/store.js';
+import { TODA_HEADER, cleanText, cleanWhere, emptyFile, nextId, parse, serializeItem, type Item } from '../src/store.js';
 
 describe('emptyFile', () => {
   it('contains the fixed header and the three sections', () => {
@@ -100,5 +100,26 @@ describe('parse', () => {
   it('round-trips: serialize(parse(serialize(x))) is stable', () => {
     const line = serializeItem({ ...base, refs: ['aa', 'bb'], done: 'ok' });
     expect(serializeItem(parse(line + '\n').items[0])).toBe(line);
+  });
+});
+
+describe('nextId', () => {
+  it('starts at D-001 on an empty file', () => {
+    expect(nextId(emptyFile())).toBe('D-001');
+  });
+
+  it('increments past the max in the hot file', () => {
+    const hot = emptyFile() + 'D-009  x  2026-09-28  api/auth.py:44  rate limiter off-by-one / minor / done: abc\n';
+    expect(nextId(hot)).toBe('D-010');
+  });
+
+  it('scans the archive too', () => {
+    const hot = emptyFile() + 'D-003  o  2026-10-26  -  w / d / revive: r\n';
+    const archive = emptyFile() + 'D-050  x  2026-09-01  -  old / old / done: x\n';
+    expect(nextId(hot, archive)).toBe('D-051');
+  });
+
+  it('tolerates null contents', () => {
+    expect(nextId(null, emptyFile(), undefined)).toBe('D-001');
   });
 });
