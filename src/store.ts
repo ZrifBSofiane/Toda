@@ -98,3 +98,45 @@ export function nextId(...contents: (string | null | undefined)[]): string {
   }
   return `D-${String(max + 1).padStart(3, '0')}`;
 }
+
+export function insertIntoSection(content: string, section: string, line: string): string {
+  const lines = content.split('\n');
+  const h = lines.findIndex((l) => l.trim() === `## ${section}`);
+  if (h === -1) {
+    while (lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
+    lines.push('', `## ${section}`, line);
+    return lines.join('\n') + '\n';
+  }
+  let end = lines.length;
+  for (let i = h + 1; i < lines.length; i++) {
+    if (lines[i].trim().startsWith('## ')) {
+      end = i;
+      break;
+    }
+  }
+  lines.splice(end, 0, line);
+  return lines.join('\n');
+}
+
+export interface AddInput {
+  what: string;
+  why: string;
+  revive: string;
+  where?: string;
+  status?: Status;
+  refs?: string[];
+}
+
+export function addItem(content: string, input: AddInput, opened: string, id?: string): { content: string; item: Item } {
+  const item: Item = {
+    id: id ?? nextId(content),
+    status: input.status ?? 'o',
+    opened,
+    where: cleanWhere(input.where ?? '-'),
+    what: cleanText(input.what),
+    why: cleanText(input.why),
+    revive: cleanText(input.revive),
+    refs: input.refs ?? [],
+  };
+  return { content: insertIntoSection(content, SECTION_BY_STATUS[item.status], serializeItem(item)), item };
+}

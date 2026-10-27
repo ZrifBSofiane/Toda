@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TODA_HEADER, cleanText, cleanWhere, emptyFile, nextId, parse, serializeItem, type Item } from '../src/store.js';
+import { TODA_HEADER, addItem, cleanText, cleanWhere, emptyFile, nextId, parse, serializeItem, type Item } from '../src/store.js';
 
 describe('emptyFile', () => {
   it('contains the fixed header and the three sections', () => {
@@ -121,5 +121,49 @@ describe('nextId', () => {
 
   it('tolerates null contents', () => {
     expect(nextId(null, emptyFile(), undefined)).toBe('D-001');
+  });
+});
+
+describe('addItem', () => {
+  it('appends D-001 to the Open section of an empty file', () => {
+    const { content, item } = addItem(emptyFile(), { what: 'w', why: 'd', revive: 'r' }, '2026-10-27');
+    expect(item.id).toBe('D-001');
+    expect(content).toContain('## Open\n\nD-001  o  2026-10-27  -  w / d / revive: r');
+  });
+
+  it('routes sleeping items to the Sleeping section', () => {
+    const { content } = addItem(emptyFile(), { what: 'w', why: 'd', revive: 'r', status: 's' }, '2026-10-27');
+    expect(content.indexOf('D-001')).toBeGreaterThan(content.indexOf('## Sleeping'));
+  });
+
+  it('accepts where, refs and an explicit id', () => {
+    const { content, item } = addItem(
+      emptyFile(),
+      { what: 'w', why: 'd', revive: 'r', where: 'src/x.ts:1', refs: ['abc'], status: 'o' },
+      '2026-10-27',
+      'D-042',
+    );
+    expect(item.id).toBe('D-042');
+    expect(content).toContain('D-042  o  2026-10-27  src/x.ts:1  w / d / revive: r / ref: abc');
+  });
+
+  it('creates a missing section at the end of the file', () => {
+    const stripped = `${TODA_HEADER.join('\n')}\n\n## Open\n`;
+    const { content } = addItem(stripped, { what: 'w', why: 'd', revive: 'r', status: 's' }, '2026-10-27');
+    expect(content).toContain('## Sleeping\n');
+    expect(content.indexOf('D-001')).toBeGreaterThan(content.indexOf('## Sleeping'));
+  });
+
+  it('preserves unknown lines across the rewrite', () => {
+    const f = emptyFile() + 'my own hand-written note\n';
+    const { content } = addItem(f, { what: 'w', why: 'd', revive: 'r' }, '2026-10-27');
+    expect(content).toContain('my own hand-written note');
+    expect(parse(content).unparsed).toBe(1);
+  });
+
+  it('assigns the next id based on existing items', () => {
+    const once = addItem(emptyFile(), { what: 'w', why: 'd', revive: 'r' }, '2026-10-27');
+    const twice = addItem(once.content, { what: 'w2', why: 'd', revive: 'r' }, '2026-10-27');
+    expect(twice.item.id).toBe('D-002');
   });
 });
