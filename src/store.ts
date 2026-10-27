@@ -59,7 +59,8 @@ export function cleanWhere(s: string): string {
 export function parse(content: string): ParsedDoc {
   const items: ParsedItem[] = [];
   let unparsed = 0;
-  for (const line of content.split('\n')) {
+  // Files edited on Windows often carry CRLF; strip it so items still parse.
+  for (const line of content.replace(/\r\n?/g, '\n').split('\n')) {
     const m = ITEM_RE.exec(line);
     if (m) items.push({ ...itemFromMatch(m), raw: line });
     else if (!isNoise(line)) unparsed++;

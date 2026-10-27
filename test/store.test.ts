@@ -66,6 +66,13 @@ describe('cleanText / cleanWhere', () => {
 });
 
 describe('parse', () => {
+  it('parses lines with CRLF endings (Windows editors, git autocrlf)', () => {
+    const doc = parse((serializeItem(base) + '\n').replace(/\n/g, '\r\n'));
+    expect(doc.items).toHaveLength(1);
+    expect(doc.items[0].id).toBe('D-017');
+    expect(doc.unparsed).toBe(0);
+  });
+
   it('parses a canonical line', () => {
     const doc = parse(serializeItem(base) + '\n');
     expect(doc.items).toHaveLength(1);
