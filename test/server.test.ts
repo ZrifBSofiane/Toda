@@ -81,3 +81,82 @@ describe('toda_add', () => {
     await client.close();
   });
 });
+
+async function seedFile(): Promise<void> {
+  let c = emptyFile();
+  c = addItem(c, { what: 'stripe bug', why: 'd', revive: 'next payments work', refs: ['3f9c1a2'] }, '2026-10-26', 'D-001').content;
+  c = addItem(c, { what: 'closed old', why: 'd', revive: 'r', status: 'x' }, '2026-09-01', 'D-002').content;
+  fs.writeFileSync(todaFile, c);
+}
+
+describe('toda_list', () => {
+  it('returns raw lines and excludes done by default', async () => {
+    await seedFile();
+    const client = await makeClient();
+    const out = await call(client, 'toda_list');
+    expect(out).toContain('stripe bug');
+    expect(out).not.toContain('closed old');
+    await client.close();
+  });
+
+  it('hints at toda_init when the file is missing', async () => {
+    const client = await makeClient();
+    const out = await call(client, 'toda_list');
+    expect(out).toContain('toda_init');
+    await client.close();
+  });
+
+  it('filters by keyword and includes the archive on demand', async () => {
+    await seedFile();
+    fs.writeFileSync(path.join(tmp, 'TODA-archive.md'), emptyFile() + 'D-050  x  2026-09-01  -  archived stripe item / d / revive: r\n');
+    const client = await makeClient();
+    expect(await call(client, 'toda_list', { keyword: 'STRIPE' })).toContain('stripe bug');
+    const out = await call(client, 'toda_list', { status: ['x'], include_archive: true });
+    expect(out).toContain('closed old');
+    expect(out).toContain('archived stripe item');
+    await client.close();
+  });
+});
+
+describe('toda_set', () => {
+  it('closes an item with a note and moves it to Done', async () => {
+    await seedFile();
+    const client = await makeClient();
+    const out = await call(client, 'toda_set', { id: 'D-001', status: 'x', note: 'fixed in 3f9c1a2', ref: 'gh:#12' });
+    expect(out).toContain('done: fixed in 3f9c1a2');
+    expect(out).toContain('ref: 3f9c1a2 gh:#12');
+    const content = readIfExists(todaFile)!;
+    expect(content.indexOf('D-001')).toBeGreaterThan(content.indexOf('## Done'));
+    await client.close();
+  });
+
+  it('errors with next action on unknown id', async () => {
+    await seedFile();
+    const client = await makeClient();
+    const res = await client.callTool({ name: 'toda_set', arguments: { id: 'D-099', status: 'x' } });
+    expect(res.isError).toBe(true);
+    expect((res.content as { text: string }[])[0].text).toContain('toda_list');
+    await client.close();
+  });
+});
+
+describe('toda_prune', () => {
+  it('moves old done items to the archive and reports the count', async () => {
+    await seedFile();
+    const client = await makeClient();
+    const out = await call(client, 'toda_prune', { older_than_days: 30 });
+    expect(out).toContain('pruned 1 item');
+    expect(readIfExists(todaFile)!).not.toContain('closed old');
+    expect(readIfExists(path.join(tmp, 'TODA-archive.md'))!).toContain('closed old');
+    await client.close();
+  });
+
+  it('is a no-op with nothing to move', async () => {
+    const client = await makeClient();
+    await call(client, 'toda_init');
+    const out = await call(client, 'toda_prune');
+    expect(out).toContain('pruned 0 item');
+    expect(fs.existsSync(path.join(tmp, 'TODA-archive.md'))).toBe(false);
+    await client.close();
+  });
+});
