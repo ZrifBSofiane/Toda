@@ -140,3 +140,24 @@ export function addItem(content: string, input: AddInput, opened: string, id?: s
   };
   return { content: insertIntoSection(content, SECTION_BY_STATUS[item.status], serializeItem(item)), item };
 }
+
+export interface SetInput {
+  status: Status;
+  note?: string;
+  refs?: string[];
+}
+
+export function setStatus(content: string, id: string, input: SetInput): { content: string; item: Item } | null {
+  const found = parse(content).items.find((i) => i.id === id);
+  if (!found) return null;
+  const updated: Item = {
+    ...found,
+    status: input.status,
+    refs: [...new Set([...found.refs, ...(input.refs ?? [])])],
+    done: input.status === 'x' ? (input.note ?? found.done ?? '') : found.done,
+  };
+  const lines = content.split('\n');
+  lines.splice(lines.indexOf(found.raw), 1);
+  const out = insertIntoSection(lines.join('\n'), SECTION_BY_STATUS[updated.status], serializeItem(updated));
+  return { content: out, item: updated };
+}

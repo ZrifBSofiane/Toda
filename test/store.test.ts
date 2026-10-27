@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TODA_HEADER, addItem, cleanText, cleanWhere, emptyFile, nextId, parse, serializeItem, type Item } from '../src/store.js';
+import { TODA_HEADER, addItem, cleanText, cleanWhere, emptyFile, nextId, parse, serializeItem, setStatus, type Item } from '../src/store.js';
 
 describe('emptyFile', () => {
   it('contains the fixed header and the three sections', () => {
@@ -165,5 +165,54 @@ describe('addItem', () => {
     const once = addItem(emptyFile(), { what: 'w', why: 'd', revive: 'r' }, '2026-10-27');
     const twice = addItem(once.content, { what: 'w2', why: 'd', revive: 'r' }, '2026-10-27');
     expect(twice.item.id).toBe('D-002');
+  });
+});
+
+function seedOpen(): { content: string; item: Item } {
+  return addItem(emptyFile(), { what: 'w', why: 'd', revive: 'r', where: 'a.ts:1' }, '2026-10-27');
+}
+
+describe('setStatus', () => {
+  it('returns null for unknown ids', () => {
+    expect(setStatus(emptyFile(), 'D-099', { status: 'x' })).toBeNull();
+  });
+
+  it('moves an item to Done and appends the done segment', () => {
+    const seed = seedOpen();
+    const res = setStatus(seed.content, 'D-001', { status: 'x', note: 'fixed in 3f9c1a2' });
+    expect(res).not.toBeNull();
+    expect(res!.item.status).toBe('x');
+    expect(res!.content).toContain('D-001  x  2026-10-27  a.ts:1  w / d / revive: r / done: fixed in 3f9c1a2');
+    expect(res!.content.indexOf('D-001')).toBeGreaterThan(res!.content.indexOf('## Done'));
+  });
+
+  it('replaces an existing done segment on a second close', () => {
+    const seed = seedOpen();
+    const closed = setStatus(seed.content, 'D-001', { status: 'x', note: 'first try' })!;
+    const reclosed = setStatus(closed.content, 'D-001', { status: 'x', note: 'real fix' })!;
+    expect(reclosed.content).toContain('done: real fix');
+    expect(reclosed.content).not.toContain('done: first try');
+  });
+
+  it('keeps the done segment when reopening', () => {
+    const seed = seedOpen();
+    const closed = setStatus(seed.content, 'D-001', { status: 'x', note: 'fix' })!;
+    const reopened = setStatus(closed.content, 'D-001', { status: 'o' })!;
+    expect(reopened.item.status).toBe('o');
+    expect(reopened.item.done).toBe('fix');
+  });
+
+  it('merges refs without duplicates', () => {
+    const seed = addItem(emptyFile(), { what: 'w', why: 'd', revive: 'r', refs: ['aa'] }, '2026-10-27');
+    const res = setStatus(seed.content, 'D-001', { status: 's', refs: ['aa', 'bb'] })!;
+    expect(res.item.refs).toEqual(['aa', 'bb']);
+    expect(res.content).toContain('/ ref: aa bb');
+  });
+
+  it('preserves unknown lines across the rewrite', () => {
+    const seed = seedOpen();
+    const withNote = seed.content.replace('## Done\n', '## Done\nscribbled margin note\n');
+    const res = setStatus(withNote, 'D-001', { status: 'x', note: 'n' })!;
+    expect(res.content).toContain('scribbled margin note');
   });
 });
