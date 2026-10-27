@@ -161,3 +161,20 @@ export function setStatus(content: string, id: string, input: SetInput): { conte
   const out = insertIntoSection(lines.join('\n'), SECTION_BY_STATUS[updated.status], serializeItem(updated));
   return { content: out, item: updated };
 }
+
+export function prune(
+  content: string,
+  archive: string | null,
+  cutoff: string,
+): { content: string; archive: string; moved: number } {
+  const moving = new Set(
+    parse(content)
+      .items.filter((i) => i.status === 'x' && i.opened < cutoff)
+      .map((i) => i.raw),
+  );
+  if (moving.size === 0) return { content, archive: archive ?? '', moved: 0 };
+  const hotLines = content.split('\n').filter((l) => !moving.has(l));
+  let arch = archive !== null && archive.trim() !== '' ? archive : emptyFile();
+  for (const line of moving) arch = insertIntoSection(arch, 'Done', line);
+  return { content: hotLines.join('\n'), archive: arch, moved: moving.size };
+}

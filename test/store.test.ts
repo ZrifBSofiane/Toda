@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TODA_HEADER, addItem, cleanText, cleanWhere, emptyFile, nextId, parse, serializeItem, setStatus, type Item } from '../src/store.js';
+import { TODA_HEADER, addItem, cleanText, cleanWhere, emptyFile, nextId, parse, prune, serializeItem, setStatus, type Item } from '../src/store.js';
 
 describe('emptyFile', () => {
   it('contains the fixed header and the three sections', () => {
@@ -214,5 +214,59 @@ describe('setStatus', () => {
     const withNote = seed.content.replace('## Done\n', '## Done\nscribbled margin note\n');
     const res = setStatus(withNote, 'D-001', { status: 'x', note: 'n' })!;
     expect(res.content).toContain('scribbled margin note');
+  });
+});
+
+function seedForPrune(): string {
+  let c = emptyFile();
+  c = addItem(c, { what: 'old closed', why: 'd', revive: 'r', status: 'x' }, '2026-09-01', 'D-001').content;
+  c = addItem(c, { what: 'recent closed', why: 'd', revive: 'r', status: 'x' }, '2026-10-20', 'D-002').content;
+  c = addItem(c, { what: 'old open', why: 'd', revive: 'r', status: 'o' }, '2026-09-01', 'D-003').content;
+  return c;
+}
+
+describe('prune', () => {
+  it('moves only closed items older than the cutoff', () => {
+    const res = prune(seedForPrune(), null, '2026-10-01');
+    expect(res.moved).toBe(1);
+    expect(res.content).toContain('recent closed');
+    expect(res.content).toContain('old open');
+    expect(res.content).not.toContain('old closed');
+    expect(res.archive).toContain('old closed');
+  });
+
+  it('keeps items whose opened date equals the cutoff (strict less-than)', () => {
+    let c = emptyFile();
+    c = addItem(c, { what: 'edge', why: 'd', revive: 'r', status: 'x' }, '2026-10-01', 'D-001').content;
+    const res = prune(c, null, '2026-10-01');
+    expect(res.moved).toBe(0);
+    expect(res.content).toContain('edge');
+  });
+
+  it('creates the archive with header and Done section when none exists', () => {
+    const res = prune(seedForPrune(), null, '2026-10-01');
+    for (const line of TODA_HEADER) expect(res.archive).toContain(line);
+    expect(res.archive).toContain('## Done');
+  });
+
+  it('appends into an existing archive', () => {
+    const first = prune(seedForPrune(), null, '2026-10-01');
+    let c = addItem(first.content, { what: 'another old', why: 'd', revive: 'r', status: 'x' }, '2026-09-15', 'D-004').content;
+    const second = prune(c, first.archive, '2026-10-01');
+    expect(second.moved).toBe(1);
+    expect(second.archive).toContain('old closed');
+    expect(second.archive).toContain('another old');
+  });
+
+  it('preserves unknown lines in the hot file', () => {
+    const seeded = seedForPrune() + 'sticky note\n';
+    const res = prune(seeded, null, '2026-10-01');
+    expect(res.content).toContain('sticky note');
+  });
+
+  it('is a no-op when nothing qualifies', () => {
+    const res = prune(emptyFile(), null, '2026-10-01');
+    expect(res.moved).toBe(0);
+    expect(res.archive).toBe('');
   });
 });
