@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TODA_HEADER, addItem, cleanText, cleanWhere, emptyFile, nextId, parse, prune, serializeItem, setStatus, type Item } from '../src/store.js';
+import { TODA_HEADER, addItem, cleanText, cleanWhere, emptyFile, listItems, nextId, parse, prune, serializeItem, setStatus, type Item } from '../src/store.js';
 
 describe('emptyFile', () => {
   it('contains the fixed header and the three sections', () => {
@@ -268,5 +268,54 @@ describe('prune', () => {
     const res = prune(emptyFile(), null, '2026-10-01');
     expect(res.moved).toBe(0);
     expect(res.archive).toBe('');
+  });
+});
+
+function seedForList(): { hot: string; archive: string } {
+  let hot = emptyFile();
+  hot = addItem(hot, { what: 'stripe bug', why: 'd', revive: 'r', where: 's.ts:1', refs: ['3f9c1a2'] }, '2026-10-26', 'D-001').content;
+  hot = addItem(hot, { what: 'docs stale', why: 'd', revive: 'r', status: 's' }, '2026-10-24', 'D-002').content;
+  hot = addItem(hot, { what: 'closed thing', why: 'd', revive: 'r', status: 'x' }, '2026-09-01', 'D-003').content;
+  const archive = emptyFile() + 'D-050  x  2026-09-01  -  archived stripe item / d / revive: r\n';
+  return { hot, archive };
+}
+
+describe('listItems', () => {
+  it('defaults to open + sleeping, excluding done', () => {
+    const { lines } = listItems(seedForList().hot);
+    expect(lines).toHaveLength(2);
+    expect(lines.join('\n')).not.toContain('closed thing');
+  });
+
+  it('filters by explicit statuses', () => {
+    const { lines } = listItems(seedForList().hot, { statuses: ['x'] });
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain('closed thing');
+  });
+
+  it('matches keyword case-insensitively across the raw line', () => {
+    const { lines } = listItems(seedForList().hot, { keyword: 'STRIPE' });
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain('stripe bug');
+  });
+
+  it('matches ref only within the ref segment', () => {
+    const seeded = seedForList();
+    const only = listItems(seeded.hot, { ref: '3f9c1a2' });
+    expect(only.lines).toHaveLength(1);
+    const none = listItems(seeded.hot, { ref: 'does-not-exist' });
+    expect(none.lines).toHaveLength(0);
+  });
+
+  it('includes the archive on demand', () => {
+    const seeded = seedForList();
+    const { lines } = listItems(seeded.hot, { includeArchive: true }, seeded.archive);
+    expect(lines.join('\n')).toContain('archived stripe item');
+  });
+
+  it('reports unparsed count', () => {
+    const seeded = seedForList();
+    const { unparsed } = listItems(seeded.hot + 'prose line\n');
+    expect(unparsed).toBe(1);
   });
 });

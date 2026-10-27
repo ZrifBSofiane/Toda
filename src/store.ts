@@ -108,6 +108,7 @@ export function insertIntoSection(content: string, section: string, line: string
     return lines.join('\n') + '\n';
   }
   let end = lines.length;
+  if (lines.length > 0 && lines[lines.length - 1] === '') end = lines.length - 1;
   for (let i = h + 1; i < lines.length; i++) {
     if (lines[i].trim().startsWith('## ')) {
       end = i;
@@ -177,4 +178,35 @@ export function prune(
   let arch = archive !== null && archive.trim() !== '' ? archive : emptyFile();
   for (const line of moving) arch = insertIntoSection(arch, 'Done', line);
   return { content: hotLines.join('\n'), archive: arch, moved: moving.size };
+}
+
+export interface ListFilter {
+  statuses?: Status[];
+  keyword?: string;
+  ref?: string;
+  includeArchive?: boolean;
+}
+
+export function listItems(
+  content: string,
+  filter: ListFilter = {},
+  archive?: string | null,
+): { lines: string[]; unparsed: number } {
+  const statuses = filter.statuses ?? (filter.includeArchive ? ['o', 's', 'x'] : ['o', 's']);
+  const kw = filter.keyword?.toLowerCase();
+  const lines: string[] = [];
+  let unparsed = 0;
+  const collect = (c: string) => {
+    const doc = parse(c);
+    unparsed += doc.unparsed;
+    for (const it of doc.items) {
+      if (!statuses.includes(it.status)) continue;
+      if (kw && !it.raw.toLowerCase().includes(kw)) continue;
+      if (filter.ref && !it.refs.some((r) => r.includes(filter.ref!))) continue;
+      lines.push(it.raw);
+    }
+  };
+  collect(content);
+  if (filter.includeArchive && archive) collect(archive);
+  return { lines, unparsed };
 }
