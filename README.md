@@ -19,7 +19,7 @@ tools over it. No network, no database, sub-millisecond operations.
 | `toda_add` | Append an item (`what`, `why_deferred`, `revive_when`, optional `where`, `status`, `ref`) |
 | `toda_list` | List items (default open + sleeping; `keyword`, `ref`, `status`, `include_archive` filters) |
 | `toda_set` | Change status (`o`/`s`/`x`), optional closure `note` and `ref` merge |
-| `toda_prune` | Move done items older than N days (default 30) to `TODA-archive.md` |
+| `toda_prune` | Move done items opened more than N days ago (default 30) to `TODA-archive.md` |
 
 ## Convention-file snippet (paste into AGENTS.md / CLAUDE.md / .cursorrules)
 
@@ -60,4 +60,5 @@ CLI form (Claude Code / ZCode — confirm exact flags with `--help` first):
   env var in the server config to pin an explicit path.
 - Closed items stay in the hot file until `toda_prune` archives them; the archive
   is only read when `include_archive` is set, keeping the token bill bounded.
+  Prune counts from the item's opened date (the spec's documented approximation).
 - References are stored as plain text and never resolved (no git/GitHub calls).

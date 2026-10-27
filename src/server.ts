@@ -94,7 +94,7 @@ export function buildServer(): McpServer {
   });
 
   server.tool('toda_prune', 'Move done items older than N days into TODA-archive.md', {
-    older_than_days: z.number().int().positive().optional().describe('Default 30'),
+    older_than_days: z.number().int().min(0).optional().describe('Default 30; counts from the opened date, so 0 archives closed items opened before today'),
   }, async (a) => {
     const p = io.todaPath();
     const hot = io.readIfExists(p);

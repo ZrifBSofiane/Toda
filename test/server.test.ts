@@ -151,6 +151,14 @@ describe('toda_prune', () => {
     await client.close();
   });
 
+  it('accepts older_than_days 0 to archive everything already closed', async () => {
+    await seedFile();
+    const client = await makeClient();
+    const out = await call(client, 'toda_prune', { older_than_days: 0 });
+    expect(out).toContain('pruned 1 item');
+    await client.close();
+  });
+
   it('is a no-op with nothing to move', async () => {
     const client = await makeClient();
     await call(client, 'toda_init');
